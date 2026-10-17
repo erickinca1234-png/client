@@ -72,6 +72,12 @@ public class ClientScreen extends GuiScreen {
     private List<Row> rows(final Module m) {
         List<Row> r = new ArrayList<Row>();
         r.add(toggle("Enabled", () -> m.enabled, () -> m.enabled = !m.enabled));
+        if (!m.hud) {
+            r.add(new Row("Clicks per second", () -> String.valueOf(m.cps),
+                    () -> m.cps = Math.max(1, m.cps - 1),
+                    () -> m.cps = Math.min(30, m.cps + 1)));
+            return r;
+        }
         r.add(new Row("Scale", () -> String.format("%.2fx", m.scale),
                 () -> m.scale = Math.max(0.5f, Math.round((m.scale - 0.05f) * 100) / 100f),
                 () -> m.scale = Math.min(3f, Math.round((m.scale + 0.05f) * 100) / 100f)));
@@ -164,6 +170,12 @@ public class ClientScreen extends GuiScreen {
                 String shown = row.arrows() ? "< " + v + " >" : v;
                 fontRendererObj.drawString(shown,
                         X0 + total - 8 - fontRendererObj.getStringWidth(shown), ry + 4, BLUE);
+            }
+            if (!selected.hud) {
+                int hy = rowY(rows.size()) + 8;
+                fontRendererObj.drawString("Manten pulsado el clic del mouse", setX + 10, hy, 0xFF888888);
+                fontRendererObj.drawString("y se repite a esos clics por segundo.", setX + 10, hy + 11, 0xFF888888);
+                fontRendererObj.drawString("Usalo solo en tu mundo / tu server.", setX + 10, hy + 26, 0xFFFFAA55);
             }
         }
     }

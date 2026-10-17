@@ -19,6 +19,10 @@ public class Module {
     public int x;
     public int y;
 
+    // Para modulos que no son de HUD (autoclick)
+    public boolean hud = true;
+    public int cps = 10;                      // clics por segundo
+
     public Module(String name, String category, int x, int y, String[] modes,
                   Function<Module, String> text) {
         this.name = name;
@@ -27,5 +31,13 @@ public class Module {
         this.y = y;
         this.modes = modes;
         this.text = text;
+    }
+
+    /** Modulo de clics (apagado por defecto). */
+    public static Module clicker(String name, String category) {
+        Module m = new Module(name, category, 0, 0, null, null);
+        m.hud = false;
+        m.enabled = false;
+        return m;
     }
 }

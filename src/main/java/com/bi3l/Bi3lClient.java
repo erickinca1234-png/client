@@ -27,6 +27,9 @@ public class Bi3lClient {
         MinecraftForge.EVENT_BUS.register(this);
     }
 
+    private double accLeft = 0;
+    private double accRight = 0;
+
     @SubscribeEvent
     public void onTick(TickEvent.ClientTickEvent e) {
         if (e.phase != TickEvent.Phase.END) return;
@@ -36,6 +39,26 @@ public class Bi3lClient {
                 mc.displayGuiScreen(new ClientScreen());
             }
         }
+
+        if (mc.thePlayer != null && mc.currentScreen == null && mc.inGameHasFocus) {
+            accLeft = runClicker(Modules.COMBAT_CLICK, mc.gameSettings.keyBindAttack, accLeft, true);
+            accRight = runClicker(Modules.BUILD_CLICK, mc.gameSettings.keyBindUseItem, accRight, false);
+        } else {
+            accLeft = 0;
+            accRight = 0;
+        }
+    }
+
+    /** Mientras mantienes el clic pulsado, repite el clic a los CPS elegidos. */
+    private static double runClicker(Module m, KeyBinding kb, double acc, boolean left) {
+        if (!m.enabled || !kb.isKeyDown()) return 0;
+        acc += m.cps / 20.0;
+        while (acc >= 1.0) {
+            KeyBinding.onTick(kb.getKeyCode());
+            if (left) CpsTracker.addLeft(); else CpsTracker.addRight();
+            acc -= 1.0;
+        }
+        return acc;
     }
 
     /** Cuenta tus clics reales (solo lee el evento del mouse, no genera clics). */
@@ -55,7 +78,7 @@ public class Bi3lClient {
         FontRenderer fr = mc.fontRendererObj;
 
         for (Module m : Modules.ALL) {
-            if (!m.enabled) continue;
+            if (!m.enabled || !m.hud) continue;
             String t = m.text.apply(m);
             int w = fr.getStringWidth(t);
             int pad = 2;

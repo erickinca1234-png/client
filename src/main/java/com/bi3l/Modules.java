@@ -10,8 +10,13 @@ import java.util.List;
 
 public final class Modules {
     public static final List<String> CATEGORIES =
-            Collections.unmodifiableList(Arrays.asList("Combat Display", "HUD"));
+            Collections.unmodifiableList(Arrays.asList("Combat Display", "HUD", "Combat", "Build"));
     public static final List<Module> ALL = new ArrayList<Module>();
+
+    /** Combate: repite el clic IZQUIERDO mientras lo mantienes pulsado. */
+    public static final Module COMBAT_CLICK = Module.clicker("Auto Click", "Combat");
+    /** Build: repite el clic DERECHO (colocar bloques) mientras lo mantienes pulsado. */
+    public static final Module BUILD_CLICK = Module.clicker("Auto Place", "Build");
 
     static {
         ALL.add(new Module("CPS", "Combat Display", 6, 6,
@@ -31,6 +36,9 @@ public final class Modules {
             return "XYZ: " + (int) Math.floor(p.posX) + " "
                     + (int) Math.floor(p.posY) + " " + (int) Math.floor(p.posZ);
         }));
+
+        ALL.add(COMBAT_CLICK);
+        ALL.add(BUILD_CLICK);
     }
 
     private Modules() {}
