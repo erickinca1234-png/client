@@ -1,0 +1,16 @@
+[
+  {
+    "modid": "${modid}",
+    "name": "BI3L Client",
+    "description": "Cliente visual con menu de modulos HUD (CPS, FPS, coordenadas). Right Shift abre el menu.",
+    "version": "${version}",
+    "mcversion": "${mcversion}",
+    "url": "",
+    "updateUrl": "",
+    "authorList": ["BI3L"],
+    "credits": "",
+    "logoFile": "",
+    "screenshots": [],
+    "dependencies": []
+  }
+]
