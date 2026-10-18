@@ -41,21 +41,28 @@ public class Bi3lClient {
         }
 
         if (mc.thePlayer != null && mc.currentScreen == null && mc.inGameHasFocus) {
-            accLeft = runClicker(Modules.COMBAT_CLICK, mc.gameSettings.keyBindAttack, accLeft, true);
-            accRight = runClicker(Modules.BUILD_CLICK, mc.gameSettings.keyBindUseItem, accRight, false);
+            accLeft = runClicker(mc, Modules.COMBAT_CLICK, mc.gameSettings.keyBindAttack, accLeft, true);
+            accRight = runClicker(mc, Modules.BUILD_CLICK, mc.gameSettings.keyBindUseItem, accRight, false);
         } else {
             accLeft = 0;
             accRight = 0;
         }
     }
 
-    /** Mientras mantienes el clic pulsado, repite el clic a los CPS elegidos. */
-    private static double runClicker(Module m, KeyBinding kb, double acc, boolean left) {
+    /** Clic real, sin pasar por los candados de vanilla. */
+    private static double runClicker(Minecraft mc, Module m, KeyBinding kb, double acc, boolean left) {
         if (!m.enabled || !kb.isKeyDown()) return 0;
         acc += m.cps / 20.0;
         while (acc >= 1.0) {
-            KeyBinding.onTick(kb.getKeyCode());
-            if (left) CpsTracker.addLeft(); else CpsTracker.addRight();
+            if (left) {
+                mc.leftClickCounter = 0;      // quita el candado del clic izquierdo
+                mc.clickMouse();              // ataca / rompe / swing de verdad
+                CpsTracker.addLeft();
+            } else {
+                mc.rightClickMouse();         // coloca / usa el item de verdad
+                mc.rightClickDelayTimer = 10; // apaga la via propia de vanilla (si no, se duplica)
+                CpsTracker.addRight();
+            }
             acc -= 1.0;
         }
         return acc;
