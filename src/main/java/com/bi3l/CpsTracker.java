@@ -2,7 +2,6 @@ package com.bi3l;
 
 import java.util.ArrayDeque;
 
-/** Cuenta los clics reales por segundo. */
 public final class CpsTracker {
     private static final ArrayDeque<Long> LEFT = new ArrayDeque<Long>();
     private static final ArrayDeque<Long> RIGHT = new ArrayDeque<Long>();
