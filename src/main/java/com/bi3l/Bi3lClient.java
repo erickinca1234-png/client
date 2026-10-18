@@ -33,7 +33,6 @@ import java.lang.reflect.Method;
 public class Bi3lClient {
     public static KeyBinding openMenu;
 
-    // Variables para Reflection
     private static Field leftClickCounterField;
     private static Field rightClickDelayTimerField;
     private static Method clickMouseMethod;
@@ -77,7 +76,6 @@ public class Bi3lClient {
         }
     }
 
-    // --- TÉCNICA GHOST 1: CAMUFLAJE DE RED (SPOOFING) ---
     @SubscribeEvent
     public void onConnect(FMLNetworkEvent.ClientConnectedToServerEvent event) {
         try {
@@ -89,10 +87,7 @@ public class Bi3lClient {
                 public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
                     if (msg instanceof C17PacketCustomPayload) {
                         C17PacketCustomPayload packet = (C17PacketCustomPayload) msg;
-                        
-                        // Intercepta la etiqueta que Forge envía al servidor
                         if ("MC|Brand".equals(packet.getChannelName())) {
-                            // Destruye la etiqueta real y envía un mensaje falso diciendo que somos "vanilla"
                             PacketBuffer buf = new PacketBuffer(Unpooled.buffer()).writeString("vanilla");
                             msg = new C17PacketCustomPayload("MC|Brand", buf);
                         }
@@ -132,10 +127,10 @@ public class Bi3lClient {
     private static double runClicker(Minecraft mc, Module m, KeyBinding kb, double acc, boolean left) {
         if (!m.enabled || !kb.isKeyDown()) return 0;
         
-        // --- TÉCNICA GHOST 2: HUMANIZACIÓN DE CLICS ---
-        // Genera un número aleatorio para que la velocidad fluctúe (entre el 70% y el 130% de los CPS que configuraste)
-        // Ejemplo: Si pones 10 CPS, dará ráfagas irregulares de 7 a 13 clics simulando una mano real.
-        double humanNoise = 0.7 + (Math.random() * 0.6); 
+        // Onda matemática para burlar los baneos por ruido robótico
+        double wave = Math.sin(System.currentTimeMillis() / 200.0) * 0.2; 
+        double humanNoise = 0.85 + wave + (Math.random() * 0.15); 
+        
         acc += (m.cps * humanNoise) / 20.0;
         
         while (acc >= 1.0) {
@@ -145,7 +140,8 @@ public class Bi3lClient {
                     if (clickMouseMethod != null) clickMouseMethod.invoke(mc);
                     CpsTracker.addLeft();
                 } else {
-                    if (rightClickDelayTimerField != null) rightClickDelayTimerField.set(mc, 0);
+                    // Límite de Auto Place en 1 tick en lugar de 0 para evadir Zeus
+                    if (rightClickDelayTimerField != null) rightClickDelayTimerField.set(mc, 1);
                     if (rightClickMouseMethod != null) rightClickMouseMethod.invoke(mc);
                     CpsTracker.addRight();
                 }
