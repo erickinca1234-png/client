@@ -1,10 +1,19 @@
 package com.bi3l;
 
+import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.ChannelPromise;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.settings.KeyBinding;
+import net.minecraft.network.NetworkManager;
+import net.minecraft.network.PacketBuffer;
+import net.minecraft.network.play.client.C17PacketCustomPayload;
 import net.minecraftforge.client.event.MouseEvent;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
 import net.minecraftforge.common.MinecraftForge;
@@ -14,6 +23,7 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
+import net.minecraftforge.fml.common.network.FMLNetworkEvent;
 import org.lwjgl.input.Keyboard;
 
 import java.lang.reflect.Field;
@@ -28,6 +38,7 @@ public class Bi3lClient {
     private static Field rightClickDelayTimerField;
     private static Method clickMouseMethod;
     private static Method rightClickMouseMethod;
+    private static Field networkManagerChannelField;
 
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
@@ -57,6 +68,38 @@ public class Bi3lClient {
             try { rightClickMouseMethod = Minecraft.class.getDeclaredMethod("rightClickMouse"); } 
             catch (NoSuchMethodException e) { rightClickMouseMethod = Minecraft.class.getDeclaredMethod("func_147121_ag"); }
             rightClickMouseMethod.setAccessible(true);
+
+            try { networkManagerChannelField = NetworkManager.class.getDeclaredField("channel"); } 
+            catch (NoSuchFieldException e) { networkManagerChannelField = NetworkManager.class.getDeclaredField("field_150746_k"); }
+            networkManagerChannelField.setAccessible(true);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // --- TÉCNICA GHOST 1: CAMUFLAJE DE RED (SPOOFING) ---
+    @SubscribeEvent
+    public void onConnect(FMLNetworkEvent.ClientConnectedToServerEvent event) {
+        try {
+            Channel channel = (Channel) networkManagerChannelField.get(event.manager);
+            ChannelPipeline pipeline = channel.pipeline();
+            
+            pipeline.addBefore("packet_handler", "bi3l_ghost", new ChannelDuplexHandler() {
+                @Override
+                public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+                    if (msg instanceof C17PacketCustomPayload) {
+                        C17PacketCustomPayload packet = (C17PacketCustomPayload) msg;
+                        
+                        // Intercepta la etiqueta que Forge envía al servidor
+                        if ("MC|Brand".equals(packet.getChannelName())) {
+                            // Destruye la etiqueta real y envía un mensaje falso diciendo que somos "vanilla"
+                            PacketBuffer buf = new PacketBuffer(Unpooled.buffer()).writeString("vanilla");
+                            msg = new C17PacketCustomPayload("MC|Brand", buf);
+                        }
+                    }
+                    super.write(ctx, msg, promise);
+                }
+            });
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -89,7 +132,12 @@ public class Bi3lClient {
     private static double runClicker(Minecraft mc, Module m, KeyBinding kb, double acc, boolean left) {
         if (!m.enabled || !kb.isKeyDown()) return 0;
         
-        acc += m.cps / 20.0;
+        // --- TÉCNICA GHOST 2: HUMANIZACIÓN DE CLICS ---
+        // Genera un número aleatorio para que la velocidad fluctúe (entre el 70% y el 130% de los CPS que configuraste)
+        // Ejemplo: Si pones 10 CPS, dará ráfagas irregulares de 7 a 13 clics simulando una mano real.
+        double humanNoise = 0.7 + (Math.random() * 0.6); 
+        acc += (m.cps * humanNoise) / 20.0;
+        
         while (acc >= 1.0) {
             try {
                 if (left) {
