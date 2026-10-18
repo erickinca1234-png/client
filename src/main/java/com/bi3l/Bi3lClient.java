@@ -23,8 +23,9 @@ import java.lang.reflect.Method;
 public class Bi3lClient {
     public static KeyBinding openMenu;
 
-    // Variables para Reflection (saltar candados privados)
+    // Variables para Reflection
     private static Field leftClickCounterField;
+    private static Field rightClickDelayTimerField;
     private static Method clickMouseMethod;
     private static Method rightClickMouseMethod;
 
@@ -33,9 +34,7 @@ public class Bi3lClient {
         openMenu = new KeyBinding("Open BI3L menu", Keyboard.KEY_RSHIFT, "BI3L Client");
         ClientRegistry.registerKeyBinding(openMenu);
         
-        // En 1.8.9, RenderGameOverlay y MouseEvent usan el bus de Forge
         MinecraftForge.EVENT_BUS.register(this);
-        // Los TickEvents usan el bus de FML
         FMLCommonHandler.instance().bus().register(this);
 
         setupReflection();
@@ -43,17 +42,18 @@ public class Bi3lClient {
 
     private void setupReflection() {
         try {
-            // leftClickCounter (Nombre de desarrollo y ofuscado)
             try { leftClickCounterField = Minecraft.class.getDeclaredField("leftClickCounter"); } 
             catch (NoSuchFieldException e) { leftClickCounterField = Minecraft.class.getDeclaredField("field_71429_W"); }
             leftClickCounterField.setAccessible(true);
 
-            // clickMouse
+            try { rightClickDelayTimerField = Minecraft.class.getDeclaredField("rightClickDelayTimer"); } 
+            catch (NoSuchFieldException e) { rightClickDelayTimerField = Minecraft.class.getDeclaredField("field_71467_ac"); }
+            rightClickDelayTimerField.setAccessible(true);
+
             try { clickMouseMethod = Minecraft.class.getDeclaredMethod("clickMouse"); } 
             catch (NoSuchMethodException e) { clickMouseMethod = Minecraft.class.getDeclaredMethod("func_147116_af"); }
             clickMouseMethod.setAccessible(true);
 
-            // rightClickMouse
             try { rightClickMouseMethod = Minecraft.class.getDeclaredMethod("rightClickMouse"); } 
             catch (NoSuchMethodException e) { rightClickMouseMethod = Minecraft.class.getDeclaredMethod("func_147121_ag"); }
             rightClickMouseMethod.setAccessible(true);
@@ -73,7 +73,7 @@ public class Bi3lClient {
         
         if (openMenu.isPressed()) {
             if (mc.currentScreen == null) {
-                mc.displayGuiScreen(new ClientScreen()); // Asegúrate de que ClientScreen.java exista
+                mc.displayGuiScreen(new ClientScreen()); 
             }
         }
 
@@ -97,12 +97,12 @@ public class Bi3lClient {
                     if (clickMouseMethod != null) clickMouseMethod.invoke(mc);
                     CpsTracker.addLeft();
                 } else {
-                    mc.rightClickDelayTimer = 0; // Este es público en 1.8.9, no requiere reflection
+                    if (rightClickDelayTimerField != null) rightClickDelayTimerField.set(mc, 0);
                     if (rightClickMouseMethod != null) rightClickMouseMethod.invoke(mc);
                     CpsTracker.addRight();
                 }
             } catch (Exception ex) {
-                ex.printStackTrace(); // Falla silenciosamente si no encuentra los métodos
+                ex.printStackTrace();
             }
             acc -= 1.0;
         }
@@ -141,7 +141,6 @@ public class Bi3lClient {
                 Gui.drawRect(-pad, -pad, w + pad, fr.FONT_HEIGHT + pad - 1, a << 24);
             }
             
-            // Usar floats (0f) previene errores de sobrecarga de métodos en Gradle
             fr.drawString(t, 0f, 0f, 0xFF000000 | m.color, m.shadow); 
             GlStateManager.popMatrix();
             GlStateManager.color(1f, 1f, 1f, 1f);
