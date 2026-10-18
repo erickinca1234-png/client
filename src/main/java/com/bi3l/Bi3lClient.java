@@ -33,8 +33,11 @@ public class Bi3lClient {
     @SubscribeEvent
     public void onTick(TickEvent.ClientTickEvent e) {
         if (e.phase != TickEvent.Phase.END) return;
+        
         Minecraft mc = Minecraft.getMinecraft();
-        while (openMenu.isPressed()) {
+        
+        // Cambiado de while a if para evitar posibles bucles infinitos que bloqueen el hilo principal
+        if (openMenu.isPressed()) {
             if (mc.currentScreen == null) {
                 mc.displayGuiScreen(new ClientScreen());
             }
@@ -49,18 +52,17 @@ public class Bi3lClient {
         }
     }
 
-    /** Clic real, sin pasar por los candados de vanilla. */
     private static double runClicker(Minecraft mc, Module m, KeyBinding kb, double acc, boolean left) {
         if (!m.enabled || !kb.isKeyDown()) return 0;
         acc += m.cps / 20.0;
         while (acc >= 1.0) {
             if (left) {
-                mc.leftClickCounter = 0;      // quita el candado del clic izquierdo
-                mc.clickMouse();              // ataca / rompe / swing de verdad
+                mc.leftClickCounter = 0;
+                mc.clickMouse();
                 CpsTracker.addLeft();
             } else {
-                mc.rightClickMouse();         // coloca / usa el item de verdad
-                mc.rightClickDelayTimer = 10; // apaga la via propia de vanilla (si no, se duplica)
+                mc.rightClickMouse();
+                mc.rightClickDelayTimer = 0; // Cambiado a 0 para máxima velocidad y evitar lag de vanilla
                 CpsTracker.addRight();
             }
             acc -= 1.0;
@@ -68,7 +70,6 @@ public class Bi3lClient {
         return acc;
     }
 
-    /** Cuenta tus clics reales (solo lee el evento del mouse, no genera clics). */
     @SubscribeEvent
     public void onMouse(MouseEvent e) {
         if (!e.buttonstate) return;
