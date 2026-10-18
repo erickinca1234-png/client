@@ -8,8 +8,7 @@ import java.util.Collections;
 import java.util.List;
 
 public final class Modules {
-    public static final List<String> CATEGORIES =
-            Collections.unmodifiableList(Arrays.asList("Combat Display", "HUD", "Combat", "Build"));
+    public static final List<String> CATEGORIES = Collections.unmodifiableList(Arrays.asList("Combat Display", "HUD", "Combat", "Build"));
     public static final List<Module> ALL = new ArrayList<Module>();
 
     public static final Module COMBAT_CLICK = Module.clicker("Auto Click", "Combat");
