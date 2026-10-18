@@ -2,7 +2,6 @@ package com.bi3l;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -13,13 +12,11 @@ public final class Modules {
             Collections.unmodifiableList(Arrays.asList("Combat Display", "HUD", "Combat", "Build"));
     public static final List<Module> ALL = new ArrayList<Module>();
 
-    /** Combate: repite el clic IZQUIERDO mientras lo mantienes pulsado. */
     public static final Module COMBAT_CLICK = Module.clicker("Auto Click", "Combat");
-    /** Build: repite el clic DERECHO (colocar bloques) mientras lo mantienes pulsado. */
     public static final Module BUILD_CLICK = Module.clicker("Auto Place", "Build");
 
     static {
-        ALL.add(new Module("CPS", "Combat Display", 6, 6,
+        ALL.add(new Module("CPS", "Combat Display", 6.0, 6.0,
                 new String[]{"Both", "Left only", "Right only"},
                 m -> {
                     if (m.mode == 1) return "CPS: " + CpsTracker.left();
@@ -27,10 +24,10 @@ public final class Modules {
                     return "CPS: " + CpsTracker.left() + " | " + CpsTracker.right();
                 }));
 
-        ALL.add(new Module("FPS", "HUD", 6, 30, null,
+        ALL.add(new Module("FPS", "HUD", 6.0, 30.0, null,
                 m -> "FPS: " + Minecraft.getDebugFPS()));
 
-        ALL.add(new Module("Coordinates", "HUD", 6, 54, null, m -> {
+        ALL.add(new Module("Coordinates", "HUD", 6.0, 54.0, null, m -> {
             EntityPlayerSP p = Minecraft.getMinecraft().thePlayer;
             if (p == null) return "XYZ: -";
             return "XYZ: " + (int) Math.floor(p.posX) + " "
@@ -40,6 +37,4 @@ public final class Modules {
         ALL.add(COMBAT_CLICK);
         ALL.add(BUILD_CLICK);
     }
-
-    private Modules() {}
 }
