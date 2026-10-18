@@ -1,20 +1,3 @@
-package com.bi3l;
-
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.FontRenderer;
-import net.minecraft.client.gui.Gui;
-import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.client.settings.KeyBinding;
-import net.minecraftforge.client.event.MouseEvent;
-import net.minecraftforge.client.event.RenderGameOverlayEvent;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.fml.client.registry.ClientRegistry;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.common.event.FMLInitializationEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
-import org.lwjgl.input.Keyboard;
-
 @Mod(modid = "bi3l", name = "BI3L Client", version = "1.0.0", useMetadata = true,
         acceptableRemoteVersions = "*")
 public class Bi3lClient {
@@ -36,7 +19,6 @@ public class Bi3lClient {
         
         Minecraft mc = Minecraft.getMinecraft();
         
-        // Cambiado de while a if para evitar posibles bucles infinitos que bloqueen el hilo principal
         if (openMenu.isPressed()) {
             if (mc.currentScreen == null) {
                 mc.displayGuiScreen(new ClientScreen());
@@ -57,12 +39,12 @@ public class Bi3lClient {
         acc += m.cps / 20.0;
         while (acc >= 1.0) {
             if (left) {
-                mc.leftClickCounter = 0;
-                mc.clickMouse();
+                mc.leftClickCounter = 0; // Resetea el contador de clics izquierdo
+                mc.clickMouse(); // Realiza el clic
                 CpsTracker.addLeft();
             } else {
-                mc.rightClickMouse();
-                mc.rightClickDelayTimer = 0; // Cambiado a 0 para máxima velocidad y evitar lag de vanilla
+                mc.rightClickMouse(); // Realiza el clic derecho
+                mc.rightClickDelayTimer = 0; // Cambiado a 0 para máxima velocidad
                 CpsTracker.addRight();
             }
             acc -= 1.0;
