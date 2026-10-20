@@ -39,11 +39,16 @@ public class Bi3lClient {
     private static Method rightClickMouseMethod;
     private static Field networkManagerChannelField;
 
+    /** Clave del handler del pipeline. */
+    private static final String GHOST_HANDLER = "bi3l_ghost";
+
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
         openMenu = new KeyBinding("Open BI3L menu", Keyboard.KEY_RSHIFT, "BI3L Client");
         ClientRegistry.registerKeyBinding(openMenu);
-        
+
+        // FMLCommonHandler.bus() devuelve MinecraftForge.EVENT_BUS, y EventBus.register deduplica,
+        // asi que registrar en los dos es inofensivo.
         MinecraftForge.EVENT_BUS.register(this);
         FMLCommonHandler.instance().bus().register(this);
 
@@ -52,23 +57,23 @@ public class Bi3lClient {
 
     private void setupReflection() {
         try {
-            try { leftClickCounterField = Minecraft.class.getDeclaredField("leftClickCounter"); } 
+            try { leftClickCounterField = Minecraft.class.getDeclaredField("leftClickCounter"); }
             catch (NoSuchFieldException e) { leftClickCounterField = Minecraft.class.getDeclaredField("field_71429_W"); }
             leftClickCounterField.setAccessible(true);
 
-            try { rightClickDelayTimerField = Minecraft.class.getDeclaredField("rightClickDelayTimer"); } 
+            try { rightClickDelayTimerField = Minecraft.class.getDeclaredField("rightClickDelayTimer"); }
             catch (NoSuchFieldException e) { rightClickDelayTimerField = Minecraft.class.getDeclaredField("field_71467_ac"); }
             rightClickDelayTimerField.setAccessible(true);
 
-            try { clickMouseMethod = Minecraft.class.getDeclaredMethod("clickMouse"); } 
+            try { clickMouseMethod = Minecraft.class.getDeclaredMethod("clickMouse"); }
             catch (NoSuchMethodException e) { clickMouseMethod = Minecraft.class.getDeclaredMethod("func_147116_af"); }
             clickMouseMethod.setAccessible(true);
 
-            try { rightClickMouseMethod = Minecraft.class.getDeclaredMethod("rightClickMouse"); } 
+            try { rightClickMouseMethod = Minecraft.class.getDeclaredMethod("rightClickMouse"); }
             catch (NoSuchMethodException e) { rightClickMouseMethod = Minecraft.class.getDeclaredMethod("func_147121_ag"); }
             rightClickMouseMethod.setAccessible(true);
 
-            try { networkManagerChannelField = NetworkManager.class.getDeclaredField("channel"); } 
+            try { networkManagerChannelField = NetworkManager.class.getDeclaredField("channel"); }
             catch (NoSuchFieldException e) { networkManagerChannelField = NetworkManager.class.getDeclaredField("field_150746_k"); }
             networkManagerChannelField.setAccessible(true);
         } catch (Exception e) {
@@ -81,20 +86,23 @@ public class Bi3lClient {
         try {
             Channel channel = (Channel) networkManagerChannelField.get(event.manager);
             ChannelPipeline pipeline = channel.pipeline();
-            
-            pipeline.addBefore("packet_handler", "bi3l_ghost", new ChannelDuplexHandler() {
-                @Override
-                public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-                    if (msg instanceof C17PacketCustomPayload) {
-                        C17PacketCustomPayload packet = (C17PacketCustomPayload) msg;
-                        if ("MC|Brand".equals(packet.getChannelName())) {
-                            PacketBuffer buf = new PacketBuffer(Unpooled.buffer()).writeString("vanilla");
-                            msg = new C17PacketCustomPayload("MC|Brand", buf);
+
+            // Evita "handler already exists" si reconectas seguido.
+            if (pipeline.get(GHOST_HANDLER) == null) {
+                pipeline.addBefore("packet_handler", GHOST_HANDLER, new ChannelDuplexHandler() {
+                    @Override
+                    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+                        if (msg instanceof C17PacketCustomPayload) {
+                            C17PacketCustomPayload packet = (C17PacketCustomPayload) msg;
+                            if ("MC|Brand".equals(packet.getChannelName())) {
+                                PacketBuffer buf = new PacketBuffer(Unpooled.buffer()).writeString("vanilla");
+                                msg = new C17PacketCustomPayload("MC|Brand", buf);
+                            }
                         }
+                        super.write(ctx, msg, promise);
                     }
-                    super.write(ctx, msg, promise);
-                }
-            });
+                });
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -106,12 +114,13 @@ public class Bi3lClient {
     @SubscribeEvent
     public void onTick(TickEvent.ClientTickEvent e) {
         if (e.phase != TickEvent.Phase.END) return;
-        
+
         Minecraft mc = Minecraft.getMinecraft();
-        
-        if (openMenu.isPressed()) {
+
+        // while (no if): vacia la cola de pulsaciones, si no te puede reabrir el menu al cerrarlo.
+        while (openMenu.isPressed()) {
             if (mc.currentScreen == null) {
-                mc.displayGuiScreen(new ClientScreen()); 
+                mc.displayGuiScreen(new ClientScreen());
             }
         }
 
@@ -124,31 +133,40 @@ public class Bi3lClient {
         }
     }
 
+    /**
+     * Maximo 1 clic por tick.
+     * objectMouseOver y el tick del server se actualizan 1 vez por tick: si mandas 2 C08
+     * en el mismo tick, el segundo va con la mira vieja -> el cliente predice 1 bloque,
+     * el server procesa 2 -> S23PacketBlockChange -> GHOST BLOCK.
+     */
     private static double runClicker(Minecraft mc, Module m, KeyBinding kb, double acc, boolean left) {
         if (!m.enabled || !kb.isKeyDown()) return 0;
-        
-        // Onda matemática para burlar los baneos por ruido robótico
-        double wave = Math.sin(System.currentTimeMillis() / 200.0) * 0.2; 
-        double humanNoise = 0.85 + wave + (Math.random() * 0.15); 
-        
-        acc += (m.cps * humanNoise) / 20.0;
-        
-        while (acc >= 1.0) {
+
+        acc += m.cps / 20.0;
+
+        if (acc >= 1.0) {
+            acc -= 1.0;
+            if (acc > 1.0) acc = 1.0;   // no acumules rafagas de 2+ clics en el mismo tick
+
             try {
                 if (left) {
+                    // El candado de clickMouse() se resetea para que no te limite a 2 CPS.
                     if (leftClickCounterField != null) leftClickCounterField.set(mc, 0);
                     if (clickMouseMethod != null) clickMouseMethod.invoke(mc);
                     CpsTracker.addLeft();
                 } else {
-                    // Límite de Auto Place en 1 tick en lugar de 0 para evadir Zeus
-                    if (rightClickDelayTimerField != null) rightClickDelayTimerField.set(mc, 1);
                     if (rightClickMouseMethod != null) rightClickMouseMethod.invoke(mc);
+
+                    // Timer ALTO (no 0 ni 1). Con 0/1 se reactiva la via propia de vanilla:
+                    //   if (keyBindUseItem.isKeyDown() && rightClickDelayTimer == 0 && !isUsingItem()) rightClickMouse();
+                    // y colocas 2 bloques por tick. Con 20 se re-pinnea en cada clic y vanilla queda apagado.
+                    // Si desactivas el modulo, el timer baja solo y en ~1s vuelve el colocar normal.
+                    if (rightClickDelayTimerField != null) rightClickDelayTimerField.set(mc, 20);
                     CpsTracker.addRight();
                 }
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
-            acc -= 1.0;
         }
         return acc;
     }
@@ -164,14 +182,14 @@ public class Bi3lClient {
     @SubscribeEvent
     public void onRender(RenderGameOverlayEvent.Post e) {
         if (e.type != RenderGameOverlayEvent.ElementType.TEXT) return;
-        
+
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.thePlayer == null) return;
         FontRenderer fr = mc.fontRendererObj;
 
         for (Module m : Modules.ALL) {
             if (!m.enabled || !m.hud || m.text == null) continue;
-            
+
             String t = m.text.apply(m);
             int w = fr.getStringWidth(t);
             int pad = 2;
@@ -179,13 +197,13 @@ public class Bi3lClient {
             GlStateManager.pushMatrix();
             GlStateManager.translate((float) m.x, (float) m.y, 0f);
             GlStateManager.scale((float) m.scale, (float) m.scale, 1f);
-            
+
             if (m.background) {
                 int a = (int) (m.bgOpacity * 255f);
                 Gui.drawRect(-pad, -pad, w + pad, fr.FONT_HEIGHT + pad - 1, a << 24);
             }
-            
-            fr.drawString(t, 0f, 0f, 0xFF000000 | m.color, m.shadow); 
+
+            fr.drawString(t, 0f, 0f, 0xFF000000 | m.color, m.shadow);
             GlStateManager.popMatrix();
             GlStateManager.color(1f, 1f, 1f, 1f);
         }
