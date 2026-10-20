@@ -17,7 +17,7 @@ public class Module {
     public float bgOpacity = 0.23f;
     public double x;
     public double y;
-
+public boolean pauseSneak = false;
     public boolean hud = true;
     public int cps = 10;
 
