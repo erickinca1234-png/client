@@ -23,9 +23,12 @@ import java.lang.reflect.Method;
 public class Bi3lClient {
     public static KeyBinding openMenu;
 
-    // Reflexion solo para el clic IZQUIERDO
+    // Reflexión para el clic IZQUIERDO (Combat Click / Autoclicker)
     private static Field leftClickCounterField;
     private static Method clickMouseMethod;
+
+    // Reflexión para el Autoplace (elimina el delay de colocación sin dar clics falsos)
+    private static Field rightClickDelayTimerField;
 
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
@@ -38,6 +41,7 @@ public class Bi3lClient {
 
     private void setupReflection() {
         try {
+            // Clic Izquierdo
             try { leftClickCounterField = Minecraft.class.getDeclaredField("leftClickCounter"); }
             catch (NoSuchFieldException e) { leftClickCounterField = Minecraft.class.getDeclaredField("field_71429_W"); }
             leftClickCounterField.setAccessible(true);
@@ -45,13 +49,18 @@ public class Bi3lClient {
             try { clickMouseMethod = Minecraft.class.getDeclaredMethod("clickMouse"); }
             catch (NoSuchMethodException e) { clickMouseMethod = Minecraft.class.getDeclaredMethod("func_147116_af"); }
             clickMouseMethod.setAccessible(true);
+
+            // Clic Derecho / Autoplace (rightClickDelayTimer)
+            try { rightClickDelayTimerField = Minecraft.class.getDeclaredField("rightClickDelayTimer"); }
+            catch (NoSuchFieldException e) { rightClickDelayTimerField = Minecraft.class.getDeclaredField("field_71467_ac"); }
+            rightClickDelayTimerField.setAccessible(true);
+
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
     private double accLeft = 0;
-    private double accRight = 0;
 
     @SubscribeEvent
     public void onTick(TickEvent.ClientTickEvent e) {
@@ -65,41 +74,50 @@ public class Bi3lClient {
 
         if (mc.thePlayer != null && mc.currentScreen == null && mc.inGameHasFocus) {
             boolean sneaking = mc.thePlayer.isSneaking();
-            accLeft = runClicker(mc, Modules.COMBAT_CLICK, mc.gameSettings.keyBindAttack, accLeft, true, sneaking);
-            accRight = runClicker(mc, Modules.BUILD_CLICK, mc.gameSettings.keyBindUseItem, accRight, false, sneaking);
+            
+            // 1. Ejecutar Autoclicker izquierdo
+            accLeft = runLeftClicker(mc, Modules.COMBAT_CLICK, mc.gameSettings.keyBindAttack, accLeft, sneaking);
+
+            // 2. Ejecutar Autoplace puro (sin clics falsos ni conteo CPS)
+            handleAutoplace(mc, Modules.BUILD_CLICK, mc.gameSettings.keyBindUseItem, sneaking);
+
         } else {
             accLeft = 0;
-            accRight = 0;
         }
     }
 
-    /** Mientras mantienes el clic pulsado, repite el clic a los CPS elegidos. */
-    private static double runClicker(Minecraft mc, Module m, KeyBinding kb, double acc, boolean left, boolean sneaking) {
+    /** Autoclicker para el botón IZQUIERDO (combate) */
+    private static double runLeftClicker(Minecraft mc, Module m, KeyBinding kb, double acc, boolean sneaking) {
         if (!m.enabled || !kb.isKeyDown()) return 0;
-        if (m.pauseSneak && sneaking) return 0;   // agachado: solo el clic normal del juego
+        if (m.pauseSneak && sneaking) return 0;
         acc += m.cps / 20.0;
         while (acc >= 1.0) {
-            if (left) {
-                // IZQUIERDO: metodo real de Minecraft, salta el candado leftClickCounter
-                // y el bloqueo por isUsingItem() (puedes bloquear con espada y pegar a la vez).
-                try {
-                    if (leftClickCounterField != null) leftClickCounterField.set(mc, 0);
-                    if (clickMouseMethod != null) clickMouseMethod.invoke(mc);
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
-                CpsTracker.addLeft();
-            } else {
-                // DERECHO: igual que tu version que SI funcionaba. No lo toco.
-                KeyBinding.onTick(kb.getKeyCode());
-                CpsTracker.addRight();
+            try {
+                if (leftClickCounterField != null) leftClickCounterField.set(mc, 0);
+                if (clickMouseMethod != null) clickMouseMethod.invoke(mc);
+            } catch (Exception ex) {
+                ex.printStackTrace();
             }
+            CpsTracker.addLeft();
             acc -= 1.0;
         }
         return acc;
     }
 
-    /** Cuenta tus clics reales (solo lee el evento del mouse, no genera clics). */
+    /** AUTOPLACE: Elimina el delay interno del juego para colocar bloques al instante sin enviar clics falsos */
+    private static void handleAutoplace(Minecraft mc, Module m, KeyBinding kb, boolean sneaking) {
+        if (!m.enabled || !kb.isKeyDown()) return;
+        if (m.pauseSneak && sneaking) return;
+        try {
+            if (rightClickDelayTimerField != null) {
+                rightClickDelayTimerField.set(mc, 0);
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    /** Cuenta tus clics reales (solo lee el evento del mouse físico). */
     @SubscribeEvent
     public void onMouse(MouseEvent e) {
         if (!e.buttonstate) return;
