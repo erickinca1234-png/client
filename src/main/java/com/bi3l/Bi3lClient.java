@@ -5,6 +5,10 @@ import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.settings.KeyBinding;
+import net.minecraft.entity.Entity; // Importación nueva
+import net.minecraft.util.AxisAlignedBB; // Importación nueva
+import net.minecraft.util.MovingObjectPosition; // Importación nueva
+import net.minecraft.util.Vec3; // Importación nueva
 import net.minecraftforge.client.event.MouseEvent;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
 import net.minecraftforge.common.MinecraftForge;
@@ -17,6 +21,7 @@ import org.lwjgl.input.Keyboard;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.List;
 
 @Mod(modid = "bi3l", name = "BI3L Client", version = "1.0.0", useMetadata = true,
         acceptableRemoteVersions = "*")
@@ -29,6 +34,9 @@ public class Bi3lClient {
 
     // Reflexión para el Autoplace (elimina el delay de colocación sin dar clics falsos)
     private static Field rightClickDelayTimerField;
+
+    // Distancia personalizada para pegar (Vanilla es 3.0)
+    public static double reachDistance = 4.5; 
 
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
@@ -75,10 +83,10 @@ public class Bi3lClient {
         if (mc.thePlayer != null && mc.currentScreen == null && mc.inGameHasFocus) {
             boolean sneaking = mc.thePlayer.isSneaking();
             
-            // 1. Ejecutar Autoclicker izquierdo
+            // 1. Ejecutar Autoclicker izquierdo + Reach
             accLeft = runLeftClicker(mc, Modules.COMBAT_CLICK, mc.gameSettings.keyBindAttack, accLeft, sneaking);
 
-            // 2. Ejecutar Autoplace puro (sin clics falsos ni conteo CPS)
+            // 2. Ejecutar Autoplace puro
             handleAutoplace(mc, Modules.BUILD_CLICK, mc.gameSettings.keyBindUseItem, sneaking);
 
         } else {
@@ -86,7 +94,7 @@ public class Bi3lClient {
         }
     }
 
-    /** Autoclicker para el botón IZQUIERDO (combate) */
+    /** Autoclicker para el botón IZQUIERDO (combate) con Reach implementado */
     private static double runLeftClicker(Minecraft mc, Module m, KeyBinding kb, double acc, boolean sneaking) {
         if (!m.enabled || !kb.isKeyDown()) return 0;
         if (m.pauseSneak && sneaking) return 0;
@@ -94,7 +102,19 @@ public class Bi3lClient {
         while (acc >= 1.0) {
             try {
                 if (leftClickCounterField != null) leftClickCounterField.set(mc, 0);
-                if (clickMouseMethod != null) clickMouseMethod.invoke(mc);
+                
+                // Lógica de REACH: Buscamos si hay una entidad en la mira dentro de nuestra distancia extendida
+                Entity target = getEntityInCrosshair(mc, reachDistance);
+
+                if (target != null) {
+                    // Si hay una entidad lejos pero dentro del Reach, la atacamos directamente
+                    mc.thePlayer.swingItem();
+                    mc.playerController.attackEntity(mc.thePlayer, target);
+                } else {
+                    // Si no hay entidad (o golpea un bloque), usamos el clic normal
+                    if (clickMouseMethod != null) clickMouseMethod.invoke(mc);
+                }
+
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
@@ -104,7 +124,50 @@ public class Bi3lClient {
         return acc;
     }
 
-    /** AUTOPLACE: Elimina el delay interno del juego para colocar bloques al instante sin enviar clics falsos */
+    /** 
+     * Calcula manualmente si hay una entidad en la dirección donde miramos,
+     * extendiendo el límite de distancia de ataque del juego.
+     */
+    private static Entity getEntityInCrosshair(Minecraft mc, double distance) {
+        if (mc.getRenderViewEntity() == null || mc.theWorld == null) return null;
+
+        Entity pointedEntity = null;
+        Vec3 eyePos = mc.getRenderViewEntity().getPositionEyes(1.0F);
+        Vec3 lookVec = mc.getRenderViewEntity().getLook(1.0F);
+        Vec3 targetVec = eyePos.addVector(lookVec.xCoord * distance, lookVec.yCoord * distance, lookVec.zCoord * distance);
+
+        // Creamos una caja de colisión para buscar entidades en esa dirección
+        AxisAlignedBB searchBox = mc.getRenderViewEntity().getEntityBoundingBox()
+                .addCoord(lookVec.xCoord * distance, lookVec.yCoord * distance, lookVec.zCoord * distance)
+                .expand(1.0D, 1.0D, 1.0D);
+
+        List<Entity> list = mc.theWorld.getEntitiesWithinAABBExcludingEntity(mc.getRenderViewEntity(), searchBox);
+        double minDistance = distance;
+
+        for (Entity entity : list) {
+            if (entity.canBeCollidedWith()) {
+                float borderSize = entity.getCollisionBorderSize();
+                AxisAlignedBB aabb = entity.getEntityBoundingBox().expand(borderSize, borderSize, borderSize);
+                MovingObjectPosition intercept = aabb.calculateIntercept(eyePos, targetVec);
+
+                if (aabb.isVecInside(eyePos)) {
+                    if (minDistance >= 0.0D) {
+                        pointedEntity = entity;
+                        minDistance = 0.0D;
+                    }
+                } else if (intercept != null) {
+                    double dist = eyePos.distanceTo(intercept.hitVec);
+                    if (dist < minDistance || minDistance == 0.0D) {
+                        pointedEntity = entity;
+                        minDistance = dist;
+                    }
+                }
+            }
+        }
+        return pointedEntity;
+    }
+
+    /** AUTOPLACE: Elimina el delay interno del juego para colocar bloques al instante */
     private static void handleAutoplace(Minecraft mc, Module m, KeyBinding kb, boolean sneaking) {
         if (!m.enabled || !kb.isKeyDown()) return;
         if (m.pauseSneak && sneaking) return;
