@@ -5,10 +5,10 @@ import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.settings.KeyBinding;
-import net.minecraft.entity.Entity; // Importación nueva
-import net.minecraft.util.AxisAlignedBB; // Importación nueva
-import net.minecraft.util.MovingObjectPosition; // Importación nueva
-import net.minecraft.util.Vec3; // Importación nueva
+import net.minecraft.entity.Entity;
+import net.minecraft.util.AxisAlignedBB;
+import net.minecraft.util.MovingObjectPosition;
+import net.minecraft.util.Vec3;
 import net.minecraftforge.client.event.MouseEvent;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
 import net.minecraftforge.common.MinecraftForge;
@@ -68,7 +68,8 @@ public class Bi3lClient {
         }
     }
 
-    private double accLeft = 0;
+    // Nuevo controlador de tiempo para el clic izquierdo
+    private static long lastLeftClickTime = 0;
 
     @SubscribeEvent
     public void onTick(TickEvent.ClientTickEvent e) {
@@ -84,22 +85,34 @@ public class Bi3lClient {
             boolean sneaking = mc.thePlayer.isSneaking();
             
             // 1. Ejecutar Autoclicker izquierdo + Reach
-            accLeft = runLeftClicker(mc, Modules.COMBAT_CLICK, mc.gameSettings.keyBindAttack, accLeft, sneaking);
+            runLeftClicker(mc, Modules.COMBAT_CLICK, mc.gameSettings.keyBindAttack, sneaking);
 
             // 2. Ejecutar Autoplace puro
             handleAutoplace(mc, Modules.BUILD_CLICK, mc.gameSettings.keyBindUseItem, sneaking);
 
+            // 3. AutoSprint (Corre automáticamente al presionar avanzar/W)
+            if (mc.gameSettings.keyBindForward.isKeyDown() && !sneaking && !mc.thePlayer.isCollidedHorizontally) {
+                mc.thePlayer.setSprinting(true);
+            }
+
         } else {
-            accLeft = 0;
+            // Resetear el timer si no estamos en juego
+            lastLeftClickTime = 0;
         }
     }
 
-    /** Autoclicker para el botón IZQUIERDO (combate) con Reach implementado */
-    private static double runLeftClicker(Minecraft mc, Module m, KeyBinding kb, double acc, boolean sneaking) {
-        if (!m.enabled || !kb.isKeyDown()) return 0;
-        if (m.pauseSneak && sneaking) return 0;
-        acc += m.cps / 20.0;
-        while (acc >= 1.0) {
+    /** Autoclicker para el botón IZQUIERDO usando control por milisegundos */
+    private static void runLeftClicker(Minecraft mc, Module m, KeyBinding kb, boolean sneaking) {
+        if (!m.enabled || !kb.isKeyDown()) return;
+        if (m.pauseSneak && sneaking) return;
+        
+        long currentTime = System.currentTimeMillis();
+        // Calculamos el delay en milisegundos necesario para alcanzar los CPS deseados
+        long delay = 1000 / Math.max(1, m.cps); 
+
+        if (currentTime - lastLeftClickTime >= delay) {
+            lastLeftClickTime = currentTime;
+
             try {
                 if (leftClickCounterField != null) leftClickCounterField.set(mc, 0);
                 
@@ -119,9 +132,7 @@ public class Bi3lClient {
                 ex.printStackTrace();
             }
             CpsTracker.addLeft();
-            acc -= 1.0;
         }
-        return acc;
     }
 
     /** 
