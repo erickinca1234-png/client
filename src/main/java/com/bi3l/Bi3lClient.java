@@ -82,7 +82,8 @@ public class Bi3lClient {
         }
 
         if (mc.thePlayer != null && mc.currentScreen == null && mc.inGameHasFocus) {
-            boolean sneaking = mc.thePlayer.isSneaking();
+            // Leemos si la tecla *física* del Shift está presionada para mayor precisión
+            boolean sneaking = mc.gameSettings.keyBindSneak.isKeyDown();
             
             // 1. Ejecutar Autoclicker izquierdo + Reach
             runLeftClicker(mc, Modules.COMBAT_CLICK, mc.gameSettings.keyBindAttack, sneaking);
@@ -90,10 +91,10 @@ public class Bi3lClient {
             // 2. Ejecutar Autoplace puro
             handleAutoplace(mc, Modules.BUILD_CLICK, mc.gameSettings.keyBindUseItem, sneaking);
 
-            // 3. AutoSprint (Corre automáticamente al presionar avanzar/W)
-            if (mc.gameSettings.keyBindForward.isKeyDown() && !sneaking && !mc.thePlayer.isCollidedHorizontally) {
-                mc.thePlayer.setSprinting(true);
-            }
+            // 3. AutoSprint (Modo Nativo Seguro)
+            // Vinculamos físicamente la tecla de Sprint a la tecla W.
+            // Esto delega la lógica a Minecraft, evitando que pelee con el Shift y rompa la cámara/hitbox.
+            KeyBinding.setKeyBindState(mc.gameSettings.keyBindSprint.getKeyCode(), mc.gameSettings.keyBindForward.isKeyDown());
 
         } else {
             // Resetear el timer si no estamos en juego
